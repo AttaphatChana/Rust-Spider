@@ -1,11 +1,22 @@
 [package]
-name = "Spider2"
+name = "crawler"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+
+http-cache-reqwest = "0.15.1"
+tokio = "1.43.0"
 spider = { version = "2", features = ["sitemap"
     , "smart","chrome","chrome_intercept"
     ,"chrome_stealth"] }
 fast_html2md = "=0.0.11"
 env_logger = "0.11.6"
+
+[features]
+
+required-features = ["spider/sync", "spider/chrome", "spider/cache_chrome_hybrid"]
+
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
