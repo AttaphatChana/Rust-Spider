@@ -1,107 +1,111 @@
-extern crate http_cache_reqwest;
+//! cargo run --example cache_chrome_hybrid --features="spider/sync spider/chrome spider/cache_chrome_hybrid"
+extern crate spider;
+
+use html2md::parse_html; // part of spider rs crate
 extern crate tokio;
-use crate::http_cache_reqwest::CACacheManager;
-// use crate::spider::http_cache_reqwest::CacheManager;
-use crate::tokio::io::AsyncWriteExt;
-use crate::tokio::io;
-use spider::string_concat::{string_concat, string_concat_impl};
-//use spider::tokio::io;
-use spider::website::Website;
+use spider::website::{Website};
 use std::io::stdout;
 use std::io::Write;
-use std::ops::Deref;
-use std::sync::Arc;
-use http_cache_reqwest::CacheManager;
-use spider::chromiumoxide::cdp::browser_protocol::accessibility::AxPropertyName::Atomic;
 
-static GLOBAL_URL_COUNT: AtomicUsize = AtomicUsize::new(0);
-
+use http_cache_reqwest::{CACacheManager, CacheManager};
 
 #[tokio::main]
 async fn main() {
-    //let a = CACacheManager::default();
+    // let a = CACacheManager::default().get()
+
     let mut website: Website = Website::new("https://heygoody.com/")
-        .with_caching(true)
+        .with_caching(false)
         .build()
         .unwrap();
-    //website.with_limit(100);
-    let mut rx2 = website.subscribe(500).unwrap();
+    website.with_limit(200);
+    let mut rx2 = website.subscribe(100).unwrap();
 
-    let start = std::time::Instant::now();
 
+    //let mut v = Vec::new();
+    println!("======sitemap crawler========");
     tokio::spawn(async move {
         let mut stdout = stdout();
-        //let mut v = Vec::new();
+
         while let Ok(res) = rx2.recv().await {
             let message = format!("Crawling - {:?}\n", res.get_url());
             let _ = stdout.write_all(message.as_bytes());
-
+            //let a = String::from(res.get_url());
+            //v.push(a);
         }
     });
 
-
     website.crawl_sitemap().await;
 
+    for i in website.get_links() {
+        let mut w = Website::new(i.to_string().as_str()).build().unwrap();
+        w.with_limit(2);
+        w.scrape_sitemap().await;
+        for j in w.get_pages().unwrap().iter() {
 
-    for i in website.get_links().iter(){
-        let mut u = Website::new(i).build().unwrap();
-        u.with_limit(2);
-        u.scrape_sitemap().await;
-        for i in u.get_pages().unwrap().iter(){
-            println!("{:?}", parse_html(&i.get_html(),false));
+            let a = parse_html(&j.get_html(), false);
+            println!("{:?}", a);
         }
     }
+    website.unsubscribe();
 
+    println!("====== chrome/http ========");
+    let mut rx2 = website.subscribe(100).unwrap();
+
+
+    tokio::spawn(async move {
+        println!("12312321");
+        let mut stdout = stdout();
+        //let mut v = Vec::new();
+
+        while let Ok(res) = rx2.recv().await {
+            let message = format!("Crawling 2 - {:?}\n", res.get_url());
+            let _ = stdout.write_all(message.as_bytes());
+        }
+    });
+
+    website.crawl_sitemap_chrome().await;
+
+    for i in website.get_links() {
+        let mut w = Website::new(i.to_string().as_str()).build().unwrap();
+        w.with_limit(2);
+        w.scrape_sitemap().await;
+        for j in w.get_pages().unwrap().iter() {
+            let a = parse_html(&j.get_html(), false);
+            println!("{:?}", a);
+        }
+    }
     website.unsubscribe();
 
 
+    // for smart crawler
 
-    let mut rx2 = website.subscribe(500).unwrap();
+    println!("======smart crawler========");
 
-    let subscription = async move {
+    let mut rx2 = website.subscribe(100).unwrap();
+
+    tokio::spawn(async move {
+
         let mut stdout = stdout();
-        let mut v = Vec::new();
+        //let mut v = Vec::new();
+
         while let Ok(res) = rx2.recv().await {
-            let b = res.get_url().to_string();
-            v.push(b);
-            let message = format!("Crawling2 - {:?}\n", res.get_url());
+            let message = format!("Crawling 3 - {:?}\n", res.get_url());
             let _ = stdout.write_all(message.as_bytes());
+            //let a = String::from(res.get_url());
+            //v.push(a);
         }
+    });
 
+    website.crawl_smart().await;
 
-        for i in v{
-            let mut u = Website::new(&i).build().unwrap();
-            u.with_limit(2);
-            u.scrape_sitemap().await;
-            for i in u.get_pages().unwrap().iter(){
-                println!("{:?}", parse_html(&i.get_html(),false));
-            }
+    for i in website.get_links() {
+        let mut w = Website::new(i.to_string().as_str()).build().unwrap();
+        w.with_limit(2);
+        w.scrape_sitemap().await;
+        for j in w.get_pages().unwrap().iter() {
+            let a = parse_html(&j.get_html(), false);
+            println!("{:?}", a);
         }
-        GLOBAL_URL_COUNT.fetch_add(1, Ordering::Relaxed);
-
-        println!("end ========= ");
-
-    };
-
-    let crawl = async move {
-        website.crawl_sitemap().await;
-        website.unsubscribe();
-    };
-
-
-    tokio::pin!(subscription);
-    //
-    tokio::select! {
-        _ = crawl => (),
-        _ = subscription => (),
-    };
-
-
-
-    let duration = start.elapsed();
-
-    println!(
-        "Time elapsed in website.crawl() is: {:?} for total pages: {:?}",
-        duration, GLOBAL_URL_COUNT
-    )
+    }
+    website.unsubscribe();
 }
